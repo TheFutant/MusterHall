@@ -1,0 +1,67 @@
+<form class="filters" method="get" action="{% url 'collection:list' %}"
+      hx-get="{% url 'collection:list' %}" hx-target="#results" hx-push-url="true"
+      hx-trigger="submit, change, keyup changed delay:400ms from:input[name=q]">
+  <div class="row">
+    <div>
+      <label for="f-q">Search</label>
+      <input type="text" id="f-q" name="q" value="{{ filters.q }}" placeholder="name, notes, scheme…">
+    </div>
+    <div>
+      <label for="f-faction">Faction</label>
+      <select id="f-faction" name="faction">
+        <option value="">All</option>
+        {% for f in factions %}<option value="{{ f.pk }}" {% if filters.faction == f.pk|stringformat:'s' %}selected{% endif %}>{{ f.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="f-subfaction">Chapter / subfaction</label>
+      <select id="f-subfaction" name="subfaction">
+        <option value="">All</option>
+        {% for s in subfactions %}<option value="{{ s.pk }}" {% if filters.subfaction == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.name }} ({{ s.faction.name }})</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="f-assembly">Build state</label>
+      <select id="f-assembly" name="assembly_state">
+        <option value="">All</option>
+        {% for value, label in assembly_choices %}<option value="{{ value }}" {% if filters.assembly_state == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="f-paint">Paint state</label>
+      <select id="f-paint" name="paint_state">
+        <option value="">All</option>
+        <option value="painted" {% if filters.paint_state == 'painted' %}selected{% endif %}>Painted (any)</option>
+        <option value="unpainted" {% if filters.paint_state == 'unpainted' %}selected{% endif %}>Unpainted</option>
+        {% for value, label in paint_choices %}<option value="{{ value }}" {% if filters.paint_state == value|stringformat:'s' %}selected{% endif %}>· {{ label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="f-source">Source product</label>
+      <select id="f-source" name="source_product">
+        <option value="">All</option>
+        {% for s in sources %}<option value="{{ s.pk }}" {% if filters.source_product == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="f-tag">Tag</label>
+      <select id="f-tag" name="tag">
+        <option value="">All</option>
+        {% for t in tags %}<option value="{{ t.pk }}" {% if filters.tag == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="f-ready">Ready for game</label>
+      <select id="f-ready" name="ready_for_game">
+        <option value="">All</option>
+        <option value="1" {% if filters.ready_for_game == '1' %}selected{% endif %}>Ready</option>
+        <option value="0" {% if filters.ready_for_game == '0' %}selected{% endif %}>Not ready</option>
+      </select>
+    </div>
+  </div>
+  <div class="actions">
+    <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    <a href="{% url 'collection:list' %}" class="btn btn-sm" hx-get="{% url 'collection:list' %}" hx-target="#results" hx-push-url="true">Reset</a>
+    <noscript><span class="muted">Filters apply on submit.</span></noscript>
+  </div>
+</form>

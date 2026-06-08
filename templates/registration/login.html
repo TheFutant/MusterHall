@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Log in · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:380px;margin:2rem auto;">
+  <h1>Log in</h1>
+  <p class="subtitle">Welcome back to your hobby muster.</p>
+  {% if form.errors %}<p class="errorlist">Wrong username or password. Try again.</p>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% for error in field.errors %}<div class="errorlist">{{ error }}</div>{% endfor %}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-primary" style="width:100%">Log in</button>
+  </form>
+  {% if REGISTRATION_OPEN %}
+  <p class="help" style="margin-top:1rem">No account yet? <a href="{% url 'signup' %}">Create one</a>.</p>
+  {% endif %}
+</div>
+{% endblock %}

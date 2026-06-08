@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block title %}Dashboard · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="subtitle" style="margin:0">An overview of {% if user.is_staff %}all{% else %}your{% endif %} collection.</p>
+  </div>
+  <div class="spacer"></div>
+  <a href="{% url 'collection:create' %}" class="btn btn-primary">+ Add unit</a>
+  <a href="{% url 'collection:list' %}" class="btn">Browse collection</a>
+</div>
+
+{% if total_items %}
+<div class="cards">
+  <div class="card stat"><div class="num">{{ total_items|intcomma }}</div><div class="lbl">Collection entries</div></div>
+  <div class="card stat"><div class="num">{{ total_models|intcomma }}</div><div class="lbl">Total models</div></div>
+  <div class="card stat">
+    <div class="num">{{ built_pct }}%</div><div class="lbl">Built ({{ built_models|intcomma }} of {{ total_models|intcomma }})</div>
+    <div class="bar-track"><div class="bar-fill" style="width:{{ built_pct }}%"></div></div>
+  </div>
+  <div class="card stat">
+    <div class="num">{{ painted_pct }}%</div><div class="lbl">Painted ({{ painted_models|intcomma }} of {{ total_models|intcomma }})</div>
+    <div class="bar-track"><div class="bar-fill green" style="width:{{ painted_pct }}%"></div></div>
+  </div>
+  <div class="card stat"><div class="num">{{ ready_items|intcomma }}</div><div class="lbl">Ready-for-game entries</div></div>
+  <div class="card stat"><div class="num">{{ unbuilt_models|intcomma }}</div><div class="lbl">Models still on sprue / unbuilt</div></div>
+</div>
+
+<div class="form-grid" style="margin-top:1.5rem;gap:1.5rem;">
+  <div>
+    <h2>By faction</h2>
+    {% include "collection/_breakdown.html" with rows=by_faction %}
+  </div>
+  <div>
+    <h2>By chapter / subfaction</h2>
+    {% include "collection/_breakdown.html" with rows=by_subfaction %}
+  </div>
+  <div class="full">
+    <h2>By source product</h2>
+    {% include "collection/_breakdown.html" with rows=by_source %}
+  </div>
+</div>
+{% else %}
+<div class="empty">
+  <p>Your collection is empty.</p>
+  <a href="{% url 'collection:create' %}" class="btn btn-primary">Add your first unit</a>
+</div>
+{% endif %}
+{% endblock %}

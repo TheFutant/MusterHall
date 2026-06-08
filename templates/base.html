@@ -1,0 +1,40 @@
+{% load static django_htmx %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>{% block title %}{{ SITE_NAME }}{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script src="{% static 'js/htmx.min.js' %}" defer></script>
+  {% django_htmx_script %}
+</head>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+  <header class="site-header">
+    <div class="bar">
+      <a class="brand" href="{% url 'collection:dashboard' %}">Muster<span>Hall</span></a>
+      {% if user.is_authenticated %}
+      <nav class="nav">
+        <a href="{% url 'collection:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
+        <a href="{% url 'collection:list' %}" class="{% if request.resolver_match.url_name == 'list' %}active{% endif %}">Collection</a>
+        <a href="{% url 'collection:create' %}" class="{% if request.resolver_match.url_name == 'create' %}active{% endif %}">Add unit</a>
+        {% if user.is_staff %}<a href="/admin/">Admin</a>{% endif %}
+        <form method="post" action="{% url 'logout' %}" style="display:inline">
+          {% csrf_token %}<button type="submit" class="btn btn-sm">Log out</button>
+        </form>
+      </nav>
+      {% endif %}
+    </div>
+  </header>
+
+  <main class="container">
+    {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

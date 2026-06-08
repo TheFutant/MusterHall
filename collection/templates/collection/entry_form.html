@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Edit {{ form.instance.name }}{% else %}Add unit{% endif %} · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <h1>{% if form.instance.pk %}Edit unit{% else %}Add a unit{% endif %}</h1>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="card" style="max-width:720px">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="errorlist">{{ form.non_field_errors }}</div>{% endif %}
+
+  {% include "collection/_field.html" with field=form.name wide=True %}
+
+  <div class="form-grid">
+    {% include "collection/_field.html" with field=form.faction %}
+    {% include "collection/_field.html" with field=form.subfaction %}
+    {% include "collection/_field.html" with field=form.quantity %}
+    {% include "collection/_field.html" with field=form.source_text %}
+    {% include "collection/_field.html" with field=form.assembly_state %}
+    {% include "collection/_field.html" with field=form.paint_state %}
+    {% include "collection/_field.html" with field=form.paint_scheme %}
+    {% include "collection/_field.html" with field=form.storage_location %}
+    {% include "collection/_field.html" with field=form.backlog_priority %}
+    <div class="field">
+      <label>&nbsp;</label>
+      <div class="checkbox-row">{{ form.ready_for_game }}<label for="{{ form.ready_for_game.id_for_label }}" style="margin:0">Ready for game</label></div>
+    </div>
+  </div>
+
+  {% include "collection/_field.html" with field=form.tags_text wide=True %}
+  {% include "collection/_field.html" with field=form.photo wide=True %}
+  {% if form.instance.photo %}<p class="help">Current: <a href="{{ form.instance.photo.url }}" target="_blank">{{ form.instance.photo.name }}</a></p>{% endif %}
+  {% include "collection/_field.html" with field=form.notes wide=True %}
+
+  <div class="actions" style="display:flex;gap:0.6rem;margin-top:0.5rem">
+    <button type="submit" class="btn btn-primary">{% if form.instance.pk %}Save changes{% else %}Add unit{% endif %}</button>
+    <a href="{% if form.instance.pk %}{{ form.instance.get_absolute_url }}{% else %}{% url 'collection:list' %}{% endif %}" class="btn">Cancel</a>
+  </div>
+</form>
+
+<datalist id="source-options">{% for s in source_options %}<option value="{{ s }}"></option>{% endfor %}</datalist>
+<datalist id="tag-options">{% for t in tag_options %}<option value="{{ t }}"></option>{% endfor %}</datalist>
+<datalist id="storage-options">{% for s in storage_options %}<option value="{{ s }}"></option>{% endfor %}</datalist>
+{% endblock %}

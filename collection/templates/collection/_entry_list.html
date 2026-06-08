@@ -1,0 +1,45 @@
+{% if entries %}
+<div class="entry-grid">
+  {% for entry in entries %}
+  <article class="entry">
+    <a class="thumb" href="{{ entry.get_absolute_url }}">
+      {% if entry.photo %}<img src="{{ entry.photo.url }}" alt="{{ entry.name }}" loading="lazy">
+      {% else %}<span class="ph">no photo</span>{% endif %}
+    </a>
+    <div class="body">
+      <a class="title" href="{{ entry.get_absolute_url }}">{{ entry.name }}</a>
+      <div class="meta">
+        {% if entry.subfaction %}{{ entry.subfaction.name }}{% elif entry.faction %}{{ entry.faction.name }}{% else %}<span class="muted">No faction</span>{% endif %}
+        {% if entry.source_product %} · {{ entry.source_product.name }}{% endif %}
+      </div>
+      <div class="badges">
+        {% if entry.quantity > 1 %}<span class="badge qty">×{{ entry.quantity }}</span>{% endif %}
+        <span class="badge">{{ entry.get_assembly_state_display }}</span>
+        <span class="badge {% if entry.is_painted %}accent{% endif %}">{{ entry.get_paint_state_display }}</span>
+        {% if entry.ready_for_game %}<span class="badge good">Ready</span>{% endif %}
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+
+{% if is_paginated %}
+<div class="pagination">
+  {% if page_obj.has_previous %}
+    <a class="btn btn-sm" href="{% querystring page=page_obj.previous_page_number %}"
+       hx-get="{% querystring page=page_obj.previous_page_number %}" hx-target="#results" hx-push-url="true">← Prev</a>
+  {% endif %}
+  <span class="muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+    <a class="btn btn-sm" href="{% querystring page=page_obj.next_page_number %}"
+       hx-get="{% querystring page=page_obj.next_page_number %}" hx-target="#results" hx-push-url="true">Next →</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty">
+  <p>No entries match these filters.</p>
+  <a href="{% url 'collection:create' %}" class="btn btn-primary">+ Add a unit</a>
+</div>
+{% endif %}

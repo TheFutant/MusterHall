@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Collection · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div>
+    <h1>Collection</h1>
+    <p class="subtitle" style="margin:0"><span id="result-count">{{ total_count }}</span> entr{{ total_count|pluralize:"y,ies" }}</p>
+  </div>
+  <div class="spacer"></div>
+  <a href="{% url 'collection:export' %}{% querystring %}" class="btn">⬇ Export CSV</a>
+  <a href="{% url 'collection:create' %}" class="btn btn-primary">+ Add unit</a>
+</div>
+
+{% include "collection/_filters.html" %}
+
+<div id="results">
+  {% include "collection/_entry_list.html" %}
+</div>
+{% endblock %}

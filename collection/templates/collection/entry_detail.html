@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ entry.name }} · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <div>
+    <h1>{{ entry.name }}</h1>
+    <p class="subtitle" style="margin:0">
+      {% if entry.faction %}{{ entry.faction.name }}{% endif %}{% if entry.subfaction %} · {{ entry.subfaction.name }}{% endif %}
+    </p>
+  </div>
+  <div class="spacer"></div>
+  <a href="{% url 'collection:update' entry.pk %}" class="btn btn-primary">Edit</a>
+  <a href="{% url 'collection:delete' entry.pk %}" class="btn btn-danger">Delete</a>
+</div>
+
+<div class="form-grid" style="gap:1.5rem">
+  <div>
+    {% if entry.photo %}
+      <a href="{{ entry.photo.url }}" target="_blank"><img src="{{ entry.photo.url }}" alt="{{ entry.name }}" style="width:100%;border-radius:var(--radius);border:1px solid var(--border)"></a>
+    {% else %}
+      <div class="card empty" style="margin:0">No photo uploaded</div>
+    {% endif %}
+    <div class="badges" style="margin-top:0.8rem">
+      <span class="badge qty">×{{ entry.quantity }} model{{ entry.quantity|pluralize }}</span>
+      <span class="badge">{{ entry.get_assembly_state_display }}</span>
+      <span class="badge {% if entry.is_painted %}accent{% endif %}">{{ entry.get_paint_state_display }}</span>
+      {% if entry.is_battle_ready %}<span class="badge good">Battle ready</span>{% endif %}
+      {% if entry.ready_for_game %}<span class="badge good">Ready for game</span>{% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <dl class="detail">
+      <dt>Faction</dt><dd>{{ entry.faction.name|default:"—" }}</dd>
+      <dt>Chapter / subfaction</dt><dd>{{ entry.subfaction.name|default:"—" }}</dd>
+      <dt>Quantity</dt><dd>{{ entry.quantity }}</dd>
+      <dt>Build state</dt><dd>{{ entry.get_assembly_state_display }}</dd>
+      <dt>Paint state</dt><dd>{{ entry.get_paint_state_display }}</dd>
+      <dt>Paint scheme</dt><dd>{{ entry.paint_scheme|default:"—" }}</dd>
+      <dt>Source product</dt><dd>{{ entry.source_product.name|default:"—" }}</dd>
+      <dt>Storage location</dt><dd>{{ entry.storage_location|default:"—" }}</dd>
+      <dt>Backlog priority</dt><dd>{{ entry.get_backlog_priority_display|default:"—" }}</dd>
+      <dt>Tags</dt><dd>
+        {% for tag in entry.tags.all %}<span class="badge">{{ tag.name }}</span> {% empty %}—{% endfor %}
+      </dd>
+      <dt>Added</dt><dd>{{ entry.created|date:"M j, Y" }}</dd>
+      <dt>Updated</dt><dd>{{ entry.updated|date:"M j, Y" }}</dd>
+    </dl>
+    {% if entry.notes %}<h2>Notes</h2><p style="white-space:pre-wrap">{{ entry.notes }}</p>{% endif %}
+  </div>
+</div>
+
+<p style="margin-top:1.5rem"><a href="{% url 'collection:list' %}">← Back to collection</a></p>
+{% endblock %}

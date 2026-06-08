@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ object.name }} · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:480px;margin:2rem auto">
+  <h1>Delete this unit?</h1>
+  <p>You are about to permanently delete <strong>{{ object.name }}</strong>{% if object.quantity > 1 %} (×{{ object.quantity }}){% endif %}. This cannot be undone.</p>
+  <form method="post">
+    {% csrf_token %}
+    <div style="display:flex;gap:0.6rem">
+      <button type="submit" class="btn btn-danger">Yes, delete</button>
+      <a href="{{ object.get_absolute_url }}" class="btn">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
