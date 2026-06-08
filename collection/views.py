@@ -1,10 +1,13 @@
 import csv
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.db.models import Count, Sum
 from django.http import HttpResponse
-from django.urls import reverse_lazy
+from django.shortcuts import redirect, render
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import (
     CreateView,
@@ -28,6 +31,10 @@ from .models import (
     SourceProduct,
     Tag,
 )
+from .roster_import import FACTION_ALIASES, parse_roster, plan_import
+
+MAX_ROSTER_CHARS = 100_000
+MAX_ROSTER_UNITS = 300
 
 
 def _form_suggestions(user):
@@ -213,3 +220,150 @@ def export_csv(request):
             ]
         )
     return response
+
+
+# ---------------------------------------------------------------------------
+# Roster import (paste/upload -> preview -> confirm -> collection entries)
+# ---------------------------------------------------------------------------
+def _read_roster_input(request):
+    """Roster text from the uploaded file (precedence) or the textarea."""
+    upload = request.FILES.get("roster_file")
+    if upload:
+        raw = upload.read()
+        for encoding in ("utf-8", "latin-1"):
+            try:
+                return raw.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return ""
+    return request.POST.get("roster_text", "")
+
+
+def _resolve_factions(roster):
+    """Best-effort match of roster faction/subfaction to shared reference data.
+
+    Never creates reference rows. Returns (faction, subfaction, matched, warnings).
+    """
+    faction = subfaction = None
+    warnings = []
+    ftext = (roster.faction_text or "").strip()
+    stext = (roster.subfaction_text or "").strip()
+
+    if ftext:
+        faction = Faction.objects.filter(name__iexact=ftext).first()
+        if not faction:
+            alias = FACTION_ALIASES.get(ftext.casefold())
+            if alias:
+                faction = Faction.objects.filter(name__iexact=alias).first()
+    if faction and stext:
+        subfaction = SubFaction.objects.filter(faction=faction, name__iexact=stext).first()
+
+    matched = True
+    if ftext and not faction:
+        matched = False
+        warnings.append(f"Faction “{ftext}” isn’t in your reference data — left blank on every unit.")
+    elif stext and faction and not subfaction:
+        warnings.append(f"Chapter “{stext}” isn’t listed under {faction.name} — left blank.")
+
+    return faction, subfaction, matched, warnings
+
+
+def _build_plan(roster, user, merge, skip_existing):
+    """Run the pure planner with DB-backed matching + owned-name set injected."""
+    faction, subfaction, matched, fwarnings = _resolve_factions(roster)
+
+    def match_fn(unit):
+        return faction, subfaction, matched, []
+
+    existing = CollectionEntry.objects.filter(owner=user).values_list("name", flat=True)
+    rows = plan_import(
+        roster, match_fn=match_fn, existing_names=existing, merge=merge, skip_existing=skip_existing
+    )
+    return rows, fwarnings
+
+
+@login_required
+def roster_import(request):
+    """GET: the import form. POST: parse and render the editable preview."""
+    if request.method != "POST":
+        return render(request, "collection/roster_import.html", {})
+
+    text = _read_roster_input(request)
+    if not text.strip():
+        messages.error(request, "Paste a roster or choose a .txt file to import.")
+        return render(request, "collection/roster_import.html", {})
+    if len(text) > MAX_ROSTER_CHARS:
+        messages.error(request, "That roster is too large to import (over 100 KB).")
+        return render(request, "collection/roster_import.html", {})
+
+    merge = request.POST.get("merge", "merge") != "separate"
+    skip_existing = request.POST.get("skip_existing") == "on"
+
+    roster = parse_roster(text)
+    if len(roster.units) > MAX_ROSTER_UNITS:
+        messages.error(request, f"That roster has more than {MAX_ROSTER_UNITS} units — please split it.")
+        return render(request, "collection/roster_import.html", {})
+
+    rows, fwarnings = _build_plan(roster, request.user, merge, skip_existing)
+    context = {
+        "roster": roster,
+        "rows": list(enumerate(rows)),
+        "roster_warnings": list(roster.warnings) + fwarnings,
+        "raw_text": text,
+        "merge": merge,
+        "skip_existing": skip_existing,
+        "default_tag": roster.list_name or "",
+        "include_count": sum(1 for r in rows if not r.skip),
+    }
+    return render(request, "collection/roster_import_preview.html", context)
+
+
+@login_required
+def roster_import_confirm(request):
+    """POST only: re-parse the raw text (authoritative) and create the chosen rows."""
+    if request.method != "POST":
+        return redirect("collection:roster_import")
+
+    text = request.POST.get("raw", "")
+    merge = request.POST.get("merge") == "1"
+    skip_existing = request.POST.get("skip_existing") == "1"
+    roster = parse_roster(text)
+    rows, _ = _build_plan(roster, request.user, merge, skip_existing)
+
+    source_name = (request.POST.get("source_text") or "").strip()
+    tag_name = (request.POST.get("tag_text") or "").strip()
+
+    created = 0
+    with transaction.atomic():
+        source = SourceProduct.objects.get_or_create(owner=request.user, name=source_name)[0] if source_name else None
+        tag = Tag.objects.get_or_create(owner=request.user, name=tag_name)[0] if tag_name else None
+
+        for i, row in enumerate(rows):
+            if request.POST.get(f"include_{i}") != "on":
+                continue
+            try:
+                qty = max(1, int(request.POST.get(f"qty_{i}", row.quantity)))
+            except (TypeError, ValueError):
+                qty = row.quantity
+            entry = CollectionEntry(
+                owner=request.user,
+                name=row.name,
+                faction=row.faction,
+                subfaction=row.subfaction,
+                quantity=qty,
+                source_product=source,
+                notes=row.notes,
+            )
+            entry.save()
+            if tag:
+                entry.tags.add(tag)
+            created += 1
+
+    if created:
+        messages.success(request, f"Imported {created} unit{'' if created == 1 else 's'} into your collection.")
+    else:
+        messages.info(request, "Nothing was imported — no rows were selected.")
+
+    if created and tag:
+        return redirect(f"{reverse('collection:list')}?tag={tag.pk}")
+    return redirect("collection:list")

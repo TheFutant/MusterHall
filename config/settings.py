@@ -139,6 +139,14 @@ else:
         }
     }
 
+# Tests default to SQLite (in-memory) so `manage.py test` works regardless of a
+# Postgres .env. Opt into the configured DB with DJANGO_TEST_USE_POSTGRES=1.
+if TESTING and not env_bool("DJANGO_TEST_USE_POSTGRES", False):
+    DATABASES["default"] = {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
+    }
+
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
