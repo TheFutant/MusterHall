@@ -133,6 +133,16 @@ class FilterTests(TestCase):
     def test_text_search(self):
         self.assertEqual([e.name for e in filtered_entries(self.user, {"q": "boy"})], ["Boyz"])
 
+    def test_filter_no_chapter(self):
+        # Boyz has a faction but no subfaction assigned.
+        qs = filtered_entries(self.user, {"subfaction": "none"})
+        self.assertEqual([e.name for e in qs], ["Boyz"])
+
+    def test_filter_no_faction(self):
+        make_entry(self.user, name="Unsorted Sprue")  # no faction at all
+        qs = filtered_entries(self.user, {"faction": "none"})
+        self.assertEqual([e.name for e in qs], ["Unsorted Sprue"])
+
 
 class ViewCrudTests(TestCase):
     @classmethod

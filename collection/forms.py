@@ -54,7 +54,7 @@ class CollectionEntryForm(forms.ModelForm):
         self.fields["faction"].queryset = Faction.objects.all()
         self.fields["faction"].empty_label = "— Faction —"
         self.fields["subfaction"].queryset = SubFaction.objects.select_related("faction")
-        self.fields["subfaction"].empty_label = "— Chapter / subfaction —"
+        self.fields["subfaction"].empty_label = "— No chapter —"
         self.fields["backlog_priority"].choices = [("", "— No priority —")] + list(BacklogPriority.choices)
 
         if self.instance and self.instance.pk:

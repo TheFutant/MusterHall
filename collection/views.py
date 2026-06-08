@@ -146,6 +146,7 @@ class _EntryFormMixin:
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx.update(_form_suggestions(self.request.user))
+        ctx["NEW_ON_SPRUE_VALUE"] = AssemblyState.NEW_ON_SPRUE.value
         return ctx
 
 

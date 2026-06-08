@@ -18,6 +18,9 @@ from .models import (
 PAINT_BUCKET_PAINTED = "painted"
 PAINT_BUCKET_UNPAINTED = "unpainted"
 
+# Filter value meaning "no faction / no chapter assigned" (i.e. IS NULL).
+NONE_VALUE = "none"
+
 
 def _as_int(value):
     try:
@@ -30,13 +33,18 @@ def filtered_entries(user, params):
     """Return the visible-to-user queryset narrowed by GET ``params``."""
     qs = CollectionEntry.objects.visible_to(user).with_related()
 
-    faction = _as_int(params.get("faction"))
-    if faction is not None:
-        qs = qs.filter(faction_id=faction)
+    # "none" is an explicit value meaning "no faction / no chapter assigned".
+    faction = params.get("faction")
+    if faction == NONE_VALUE:
+        qs = qs.filter(faction__isnull=True)
+    elif _as_int(faction) is not None:
+        qs = qs.filter(faction_id=_as_int(faction))
 
-    subfaction = _as_int(params.get("subfaction"))
-    if subfaction is not None:
-        qs = qs.filter(subfaction_id=subfaction)
+    subfaction = params.get("subfaction")
+    if subfaction == NONE_VALUE:
+        qs = qs.filter(subfaction__isnull=True)
+    elif _as_int(subfaction) is not None:
+        qs = qs.filter(subfaction_id=_as_int(subfaction))
 
     assembly = _as_int(params.get("assembly_state"))
     if assembly is not None and assembly in AssemblyState.values:

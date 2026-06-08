@@ -10,6 +10,7 @@
       <label for="f-faction">Faction</label>
       <select id="f-faction" name="faction">
         <option value="">All</option>
+        <option value="none" {% if filters.faction == 'none' %}selected{% endif %}>— No faction —</option>
         {% for f in factions %}<option value="{{ f.pk }}" {% if filters.faction == f.pk|stringformat:'s' %}selected{% endif %}>{{ f.name }}</option>{% endfor %}
       </select>
     </div>
@@ -17,6 +18,7 @@
       <label for="f-subfaction">Chapter / subfaction</label>
       <select id="f-subfaction" name="subfaction">
         <option value="">All</option>
+        <option value="none" {% if filters.subfaction == 'none' %}selected{% endif %}>— No chapter —</option>
         {% for s in subfactions %}<option value="{{ s.pk }}" {% if filters.subfaction == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.name }} ({{ s.faction.name }})</option>{% endfor %}
       </select>
     </div>

@@ -41,4 +41,18 @@
 <datalist id="source-options">{% for s in source_options %}<option value="{{ s }}"></option>{% endfor %}</datalist>
 <datalist id="tag-options">{% for t in tag_options %}<option value="{{ t }}"></option>{% endfor %}</datalist>
 <datalist id="storage-options">{% for s in storage_options %}<option value="{{ s }}"></option>{% endfor %}</datalist>
+
+<script>
+  // Models new on sprue aren't committed to a chapter yet — default them to
+  // faction-only by clearing the chapter when "New on sprue" is selected.
+  // It stays overridable: the user can pick a chapter back afterwards.
+  (function () {
+    var build = document.getElementById("id_assembly_state");
+    var chapter = document.getElementById("id_subfaction");
+    if (!build || !chapter) return;
+    build.addEventListener("change", function () {
+      if (build.value === "{{ NEW_ON_SPRUE_VALUE }}") chapter.value = "";
+    });
+  })();
+</script>
 {% endblock %}
