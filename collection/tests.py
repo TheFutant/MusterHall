@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
@@ -7,8 +8,65 @@ from reference.models import Faction, SubFaction
 
 from .filters import filtered_entries
 from .models import AssemblyState, CollectionEntry, PaintState, SourceProduct, Tag
+from .roster_import import ParsedRoster, ParsedUnit, parse_roster, plan_import
 
 User = get_user_model()
+
+
+SAMPLE_ROSTER = """Darnath Force (1990 points)
+
+Space Marines
+Imperial Fists
+Strike Force (2000 points)
+Emperor's Shield
+
+
+CHARACTERS
+
+Ancient in Terminator Armour (95 points)
+  • 1x Power fist
+    1x Storm bolter
+  • Enhancement: Malodraxian Standard
+
+Darnath Lysander (100 points)
+  • Warlord
+  • 1x Fist of Dorn
+
+
+BATTLELINE
+
+Heavy Intercessor Squad (100 points)
+  • 1x Heavy Intercessor Sergeant
+    • 1x Bolt pistol
+      1x Heavy bolt rifle
+  • 4x Heavy Intercessor
+    • 4x Bolt pistol
+      4x Heavy bolt rifle
+
+
+OTHER DATASHEETS
+
+Ballistus Dreadnought (150 points)
+  • 1x Armoured feet
+    1x Ballistus lascannon
+
+Ballistus Dreadnought (150 points)
+  • 1x Armoured feet
+    1x Ballistus lascannon
+
+Terminator Assault Squad (360 points)
+  • 1x Assault Terminator Sergeant
+    • 1x Storm Shield
+      1x Thunder hammer
+  • 9x Assault Terminator
+    • 9x Storm Shield
+      9x Thunder hammer
+
+Exported with App Version: v1.53.0 (119), Data Version: v780"""
+
+
+def _null_match(unit):
+    return None, None, True, []
 
 
 def make_entry(owner, name="Test Unit", **kwargs):
@@ -158,3 +216,147 @@ class ExportAndDashboardTests(TestCase):
         self.assertEqual(resp.context["built_models"], 3)
         self.assertEqual(resp.context["painted_models"], 3)
         self.assertEqual(resp.context["painted_pct"], 100)
+
+
+class RosterParserTests(TestCase):
+    def test_parses_metadata_and_units(self):
+        r = parse_roster(SAMPLE_ROSTER)
+        self.assertEqual(r.list_name, "Darnath Force")
+        self.assertEqual(r.total_points, 1990)
+        self.assertEqual(r.faction_text, "Space Marines")
+        self.assertEqual(r.subfaction_text, "Imperial Fists")
+        self.assertEqual((r.game_size, r.points_limit), ("Strike Force", 2000))
+        self.assertEqual(r.detachment_text, "Emperor's Shield")
+        self.assertEqual(r.data_version, "v780")
+        self.assertEqual([u.name for u in r.units].count("Ballistus Dreadnought"), 2)
+        self.assertEqual(len(r.units), 6)
+
+    def test_model_counts_and_flags(self):
+        units = {u.name: u for u in parse_roster(SAMPLE_ROSTER).units}
+        self.assertEqual(units["Heavy Intercessor Squad"].models, 5)
+        self.assertEqual(units["Terminator Assault Squad"].models, 10)
+        self.assertEqual(units["Darnath Lysander"].models, 1)
+        self.assertTrue(units["Darnath Lysander"].warlord)
+        self.assertEqual(units["Ancient in Terminator Armour"].enhancement, "Malodraxian Standard")
+
+    def test_normalization_and_tolerance(self):
+        # CRLF, × glyph, NBSP, and a garbage line should not crash the parser.
+        text = "My List (5 points)\r\n\r\nOrks\r\n\r\nOTHER DATASHEETS\r\n\r\nBoyz (5 points)\r\n  • 10× Ork Boy\r\n??? junk line\r\n"
+        r = parse_roster(text)
+        self.assertEqual(r.list_name, "My List")
+        self.assertEqual(len(r.units), 1)
+        self.assertEqual(r.units[0].models, 1)  # no nested wargear -> single-block
+
+    def test_empty_input(self):
+        r = parse_roster("")
+        self.assertEqual(r.units, [])
+        self.assertTrue(r.warnings)
+
+
+class ImportPlanTests(TestCase):
+    def test_merge_collapses_duplicates_into_quantity(self):
+        roster = parse_roster(SAMPLE_ROSTER)
+        rows = plan_import(roster, match_fn=_null_match, existing_names=[], merge=True)
+        names = [r.name for r in rows]
+        self.assertEqual(len(rows), 5)  # two Ballistus merged
+        ballistus = next(r for r in rows if r.name == "Ballistus Dreadnought")
+        self.assertEqual(ballistus.quantity, 2)
+        self.assertEqual(names.count("Ballistus Dreadnought"), 1)
+
+    def test_keep_separate(self):
+        roster = parse_roster(SAMPLE_ROSTER)
+        rows = plan_import(roster, match_fn=_null_match, existing_names=[], merge=False)
+        self.assertEqual(len(rows), 6)
+        self.assertEqual([r.name for r in rows].count("Ballistus Dreadnought"), 2)
+
+    def test_skip_existing_is_name_scoped(self):
+        roster = parse_roster(SAMPLE_ROSTER)
+        rows = plan_import(
+            roster, match_fn=_null_match, existing_names=["ballistus dreadnought"],
+            merge=True, skip_existing=True,
+        )
+        skipped = [r for r in rows if r.skip]
+        self.assertEqual([r.name for r in skipped], ["Ballistus Dreadnought"])
+
+    def test_long_name_truncated(self):
+        roster = ParsedRoster(list_name="X", units=[ParsedUnit(name="A" * 250, points=10, section="X", models=1)])
+        rows = plan_import(roster, match_fn=_null_match, existing_names=[], merge=True)
+        self.assertEqual(len(rows[0].name), 200)
+        self.assertTrue(any("truncat" in w.lower() for w in rows[0].warnings))
+
+    def test_notes_capture_list_data(self):
+        roster = parse_roster(SAMPLE_ROSTER)
+        rows = plan_import(roster, match_fn=_null_match, existing_names=[], merge=True)
+        lysander = next(r for r in rows if r.name == "Darnath Lysander")
+        self.assertIn("Imported from list", lysander.notes)
+        self.assertIn("Warlord", lysander.notes)
+        self.assertIn("Emperor's Shield", lysander.notes)
+
+
+class RosterImportViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("alice", password="pw12345!")
+        cls.astartes = Faction.objects.create(name="Adeptus Astartes")
+        cls.imperial_fists = SubFaction.objects.create(faction=cls.astartes, name="Imperial Fists")
+        # Pre-existing owned unit, to exercise dedup-vs-collection.
+        CollectionEntry.objects.create(owner=cls.user, name="Ballistus Dreadnought")
+
+    def test_import_requires_login(self):
+        resp = self.client.get(reverse("collection:roster_import"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/accounts/login/", resp["Location"])
+
+    def test_preview_does_not_create_entries(self):
+        self.client.force_login(self.user)
+        before = CollectionEntry.objects.count()
+        resp = self.client.post(reverse("collection:roster_import"), {"roster_text": SAMPLE_ROSTER, "merge": "merge"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTemplateUsed(resp, "collection/roster_import_preview.html")
+        self.assertContains(resp, "Ballistus Dreadnought")
+        self.assertEqual(CollectionEntry.objects.count(), before)
+
+    def test_file_upload_path(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("army.txt", SAMPLE_ROSTER.encode(), content_type="text/plain")
+        resp = self.client.post(reverse("collection:roster_import"), {"roster_file": upload})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Darnath Force")
+
+    def test_confirm_creates_merged_entries_with_faction_match(self):
+        self.client.force_login(self.user)
+        data = {"raw": SAMPLE_ROSTER, "merge": "1", "skip_existing": "0", "tag_text": "Darnath Force"}
+        for i in range(10):
+            data[f"include_{i}"] = "on"
+        resp = self.client.post(reverse("collection:roster_import_confirm"), data)
+        self.assertEqual(resp.status_code, 302)
+
+        imported = CollectionEntry.objects.filter(owner=self.user, tags__name="Darnath Force")
+        self.assertEqual(imported.count(), 5)  # 6 units, two Ballistus merged
+        ballistus = imported.get(name="Ballistus Dreadnought")
+        self.assertEqual(ballistus.quantity, 2)
+        # "Space Marines" alias -> Adeptus Astartes; "Imperial Fists" subfaction matched.
+        self.assertEqual(ballistus.faction, self.astartes)
+        self.assertEqual(ballistus.subfaction, self.imperial_fists)
+        lysander = imported.get(name="Darnath Lysander")
+        self.assertIn("Warlord", lysander.notes)
+
+    def test_confirm_honours_unchecked_rows_and_quantity(self):
+        self.client.force_login(self.user)
+        data = {"raw": SAMPLE_ROSTER, "merge": "1", "skip_existing": "0", "tag_text": "Pick",
+                "include_0": "on", "qty_0": "7"}
+        resp = self.client.post(reverse("collection:roster_import_confirm"), data)
+        self.assertEqual(resp.status_code, 302)
+        imported = CollectionEntry.objects.filter(owner=self.user, tags__name="Pick")
+        self.assertEqual(imported.count(), 1)
+        self.assertEqual(imported.first().quantity, 7)
+
+    def test_confirm_is_owner_scoped(self):
+        bob = User.objects.create_user("bob", password="pw12345!")
+        self.client.force_login(bob)
+        data = {"raw": SAMPLE_ROSTER, "merge": "1", "skip_existing": "0", "tag_text": "Bobs"}
+        for i in range(10):
+            data[f"include_{i}"] = "on"
+        self.client.post(reverse("collection:roster_import_confirm"), data)
+        self.assertTrue(CollectionEntry.objects.filter(owner=bob, tags__name="Bobs").exists())
+        self.assertFalse(CollectionEntry.objects.filter(owner=self.user, tags__name="Bobs").exists())

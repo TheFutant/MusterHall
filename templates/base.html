@@ -19,6 +19,7 @@
         <a href="{% url 'collection:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
         <a href="{% url 'collection:list' %}" class="{% if request.resolver_match.url_name == 'list' %}active{% endif %}">Collection</a>
         <a href="{% url 'collection:create' %}" class="{% if request.resolver_match.url_name == 'create' %}active{% endif %}">Add unit</a>
+        <a href="{% url 'collection:roster_import' %}" class="{% if request.resolver_match.url_name == 'roster_import' %}active{% endif %}">Import</a>
         {% if user.is_staff %}<a href="/admin/">Admin</a>{% endif %}
         <form method="post" action="{% url 'logout' %}" style="display:inline">
           {% csrf_token %}<button type="submit" class="btn btn-sm">Log out</button>

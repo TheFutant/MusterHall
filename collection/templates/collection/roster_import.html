@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Import roster · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="toolbar"><h1>Import a roster</h1></div>
+<p class="subtitle">Paste an army-roster text export (or upload the <code>.txt</code> file) to add its
+units to your collection. You'll get a preview to review before anything is saved.</p>
+
+<form method="post" enctype="multipart/form-data" action="{% url 'collection:roster_import' %}" class="card" style="max-width:760px">
+  {% csrf_token %}
+  <div class="field">
+    <label for="roster_text">Paste roster text</label>
+    <textarea id="roster_text" name="roster_text" rows="14" placeholder="Darnath Force (1990 points)&#10;&#10;Space Marines&#10;Imperial Fists&#10;…"></textarea>
+  </div>
+  <div class="field">
+    <label for="roster_file">…or upload a roster file (.txt)</label>
+    <input type="file" id="roster_file" name="roster_file" accept=".txt,text/plain">
+    <div class="help">If you provide both, the uploaded file is used.</div>
+  </div>
+
+  <div class="form-grid">
+    <div class="field">
+      <label>Repeated units</label>
+      <div class="checkbox-row"><input type="radio" id="merge_merge" name="merge" value="merge" checked><label for="merge_merge" style="margin:0">Merge into one entry with quantity</label></div>
+      <div class="checkbox-row"><input type="radio" id="merge_sep" name="merge" value="separate"><label for="merge_sep" style="margin:0">Keep every unit as a separate entry</label></div>
+    </div>
+    <div class="field">
+      <label>Already-owned units</label>
+      <div class="checkbox-row"><input type="checkbox" id="skip_existing" name="skip_existing"><label for="skip_existing" style="margin:0">Skip names already in my collection</label></div>
+      <div class="help">You can still re-tick them in the preview.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:0.6rem;margin-top:0.5rem">
+    <button type="submit" class="btn btn-primary">Parse roster →</button>
+    <a href="{% url 'collection:list' %}" class="btn">Cancel</a>
+  </div>
+</form>
+
+<p class="help" style="max-width:760px;margin-top:1rem">Supports the current New Recruit-style text export
+(unit names, points, sections, warlord, enhancements, wargear). Points and detachment data are saved into
+each unit's notes — MusterHall stays collection-first. The parser is isolated, so it can be updated when the
+new edition's export format changes.</p>
+{% endblock %}

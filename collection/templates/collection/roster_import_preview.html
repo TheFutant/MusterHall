@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Review import · {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<div class="toolbar"><h1>Review import</h1></div>
+
+<div class="card" style="margin-bottom:1rem">
+  <dl class="detail" style="margin:0">
+    {% if roster.list_name %}<dt>List</dt><dd>{{ roster.list_name }}{% if roster.total_points %} · {{ roster.total_points }} pts{% endif %}</dd>{% endif %}
+    <dt>Faction</dt><dd>{% if roster.faction_text %}{{ roster.faction_text }}{% if roster.subfaction_text %} — {{ roster.subfaction_text }}{% endif %}{% else %}—{% endif %}</dd>
+    {% if roster.detachment_text %}<dt>Detachment</dt><dd>{{ roster.detachment_text }}{% if roster.game_size %} ({{ roster.game_size }}{% if roster.points_limit %}, {{ roster.points_limit }} pts{% endif %}){% endif %}</dd>{% endif %}
+    <dt>Rows</dt><dd>{{ rows|length }} ({{ include_count }} selected by default)</dd>
+  </dl>
+</div>
+
+{% if roster_warnings %}
+<ul class="messages"><li class="error"><strong>Heads up:</strong>
+  <ul style="margin:0.3rem 0 0">{% for w in roster_warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+</li></ul>
+{% endif %}
+
+{% if rows %}
+<form method="post" action="{% url 'collection:roster_import_confirm' %}">
+  {% csrf_token %}
+  <textarea name="raw" style="display:none">{{ raw_text }}</textarea>
+  <input type="hidden" name="merge" value="{% if merge %}1{% else %}0{% endif %}">
+  <input type="hidden" name="skip_existing" value="{% if skip_existing %}1{% else %}0{% endif %}">
+
+  <div class="form-grid" style="max-width:760px">
+    <div class="field">
+      <label for="tag_text">Tag these imports as</label>
+      <input type="text" id="tag_text" name="tag_text" value="{{ default_tag }}" autocomplete="off">
+      <div class="help">Lets you filter the whole import later. Leave blank for none.</div>
+    </div>
+    <div class="field">
+      <label for="source_text">Source product (optional)</label>
+      <input type="text" id="source_text" name="source_text" autocomplete="off">
+    </div>
+  </div>
+
+  <div class="table-wrap" style="margin-top:0.5rem">
+    <table>
+      <thead><tr><th>Import</th><th>Unit</th><th>Qty</th><th>Faction</th><th>Chapter</th><th>Notes / warnings</th></tr></thead>
+      <tbody>
+        {% for i, row in rows %}
+        <tr>
+          <td><input type="checkbox" name="include_{{ i }}" {% if not row.skip %}checked{% endif %}></td>
+          <td>{{ row.name }}{% if row.section %}<div class="muted" style="font-size:0.8rem">{{ row.section|title }}</div>{% endif %}</td>
+          <td><input type="number" name="qty_{{ i }}" value="{{ row.quantity }}" min="1" style="width:5rem"></td>
+          <td>{% if row.faction %}{{ row.faction.name }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td>{% if row.subfaction %}{{ row.subfaction.name }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td class="muted" style="font-size:0.8rem">
+            {% if row.skip %}<span class="badge">already owned</span> {% endif %}
+            {% for w in row.warnings %}{{ w }}{% if not forloop.last %} · {% endif %}{% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display:flex;gap:0.6rem;margin-top:1rem">
+    <button type="submit" class="btn btn-primary">Import selected →</button>
+    <a href="{% url 'collection:roster_import' %}" class="btn">Back</a>
+  </div>
+</form>
+{% else %}
+<div class="empty">
+  <p>No units were found in that roster.</p>
+  <a href="{% url 'collection:roster_import' %}" class="btn btn-primary">Try again</a>
+</div>
+{% endif %}
+{% endblock %}
