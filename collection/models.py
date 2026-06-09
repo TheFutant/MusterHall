@@ -47,6 +47,21 @@ BUILT_THRESHOLD = AssemblyState.ASSEMBLED
 PAINTED_THRESHOLD = PaintState.PAINTED
 
 
+def next_state_value(current, choices_enum):
+    """The next value in an ordered IntegerChoices, wrapping past the end.
+
+    Powers the at-the-table quick-toggle: one tap bumps a unit one step along
+    (and from the final state back to the first, so a mis-tap is recoverable by
+    tapping through). An unrecognised value resets to the first state.
+    """
+    values = [choice.value for choice in choices_enum]
+    try:
+        index = values.index(current)
+    except ValueError:
+        index = -1
+    return values[(index + 1) % len(values)]
+
+
 def collection_photo_path(instance, filename):
     """Per-user, collision-proof upload path. Never trusts the client filename."""
     ext = Path(filename).suffix.lower()[:10]
@@ -188,3 +203,12 @@ class CollectionEntry(TimeStampedModel):
     def is_battle_ready(self):
         """Tabletop-ready in fact: fully assembled and at least painted."""
         return self.is_built and self.is_painted
+
+    # --- One-tap state advance (the at-the-table quick-toggle) ----------------
+    def advance_assembly(self):
+        """Bump the build one step (wrapping). Caller saves."""
+        self.assembly_state = next_state_value(self.assembly_state, AssemblyState)
+
+    def advance_paint(self):
+        """Bump the paint one step (wrapping). Caller saves."""
+        self.paint_state = next_state_value(self.paint_state, PaintState)

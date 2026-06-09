@@ -5,8 +5,14 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.static import serve as media_serve
 
+from . import pwa_views
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # PWA: served from root so the service worker controls the whole site.
+    path("manifest.webmanifest", pwa_views.manifest, name="manifest"),
+    path("sw.js", pwa_views.service_worker, name="service_worker"),
+    path("offline/", pwa_views.offline, name="offline"),
     # Built-in login/logout/password views, plus our signup view.
     path("accounts/", include("accounts.urls")),
     path("accounts/", include("django.contrib.auth.urls")),

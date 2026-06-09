@@ -125,6 +125,26 @@ tbody tr:last-child td { border-bottom: none; }
 .badge.good { background: transparent; color: var(--good); border-color: var(--good); }
 .badge.qty { font-variant-numeric: tabular-nums; }
 
+/* At-the-table quick-toggle: tappable state badges. */
+.state-controls { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; }
+button.badge {
+  font-family: inherit; line-height: 1.1; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.badge.state {
+  /* Comfortable ~32px touch target without bloating list density too much. */
+  padding: 0.34rem 0.62rem; min-height: 32px; display: inline-flex; align-items: center;
+  transition: transform .06s ease, background .12s ease, border-color .12s ease, color .12s ease;
+}
+.badge.state:hover { border-color: var(--accent); color: var(--accent); }
+.badge.state.accent:hover { color: var(--accent); }
+.badge.state:active { transform: scale(0.93); }
+.badge.state.ghost { border-style: dashed; color: var(--text-dim); }
+.badge.state.htmx-request { opacity: 0.5; }   /* in-flight feedback */
+@media (hover: none) {
+  .badge.state:hover { border-color: var(--border); color: inherit; }  /* no sticky hover on touch */
+}
+
 /* Forms */
 form .field { margin-bottom: 0.9rem; }
 label { display: block; font-size: 0.88rem; color: var(--text-dim); margin-bottom: 0.25rem; }

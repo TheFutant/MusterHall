@@ -22,11 +22,10 @@
     {% endif %}
     <div class="badges" style="margin-top:0.8rem">
       <span class="badge qty">×{{ entry.quantity }} model{{ entry.quantity|pluralize }}</span>
-      <span class="badge">{{ entry.get_assembly_state_display }}</span>
-      <span class="badge {% if entry.is_painted %}accent{% endif %}">{{ entry.get_paint_state_display }}</span>
-      {% if entry.is_battle_ready %}<span class="badge good">Battle ready</span>{% endif %}
-      {% if entry.ready_for_game %}<span class="badge good">Ready for game</span>{% endif %}
+      {% include "collection/_entry_controls.html" with detail=True %}
+      <span id="detail-battle-ready">{% if entry.is_battle_ready %}<span class="badge good">Battle ready</span>{% endif %}</span>
     </div>
+    <p class="muted" style="margin:0.5rem 0 0;font-size:0.8rem">Tap a badge to update build, paint or ready state.</p>
   </div>
 
   <div class="card">
@@ -34,8 +33,8 @@
       <dt>Faction</dt><dd>{{ entry.faction.name|default:"—" }}</dd>
       <dt>Chapter / subfaction</dt><dd>{{ entry.subfaction.name|default:"—" }}</dd>
       <dt>Quantity</dt><dd>{{ entry.quantity }}</dd>
-      <dt>Build state</dt><dd>{{ entry.get_assembly_state_display }}</dd>
-      <dt>Paint state</dt><dd>{{ entry.get_paint_state_display }}</dd>
+      <dt>Build state</dt><dd><span id="detail-assembly">{{ entry.get_assembly_state_display }}</span></dd>
+      <dt>Paint state</dt><dd><span id="detail-paint">{{ entry.get_paint_state_display }}</span></dd>
       <dt>Paint scheme</dt><dd>{{ entry.paint_scheme|default:"—" }}</dd>
       <dt>Source product</dt><dd>{{ entry.source_product.name|default:"—" }}</dd>
       <dt>Storage location</dt><dd>{{ entry.storage_location|default:"—" }}</dd>

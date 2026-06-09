@@ -1,0 +1,32 @@
+{% comment %}
+One-tap hobby-state controls for a single entry (the at-the-table quick-toggle).
+Each button POSTs to quick_advance and swaps this whole group with the refreshed
+fragment the view returns, so the card updates in place with no reload. CSRF is
+supplied by the body-level hx-headers in base.html.
+{% endcomment %}
+<span class="state-controls">
+  <button type="button" class="badge state assembly"
+          hx-post="{% url 'collection:quick_advance' entry.pk 'assembly' %}"
+          hx-target="closest .state-controls" hx-swap="outerHTML"
+          {% if detail %}hx-vals='{"detail": "1"}' {% endif %}
+          title="Build: {{ entry.get_assembly_state_display }} · tap to advance"
+          aria-label="Build state {{ entry.get_assembly_state_display }}. Tap to advance.">
+    {{ entry.get_assembly_state_display }}
+  </button>
+  <button type="button" class="badge state paint{% if entry.is_painted %} accent{% endif %}"
+          hx-post="{% url 'collection:quick_advance' entry.pk 'paint' %}"
+          hx-target="closest .state-controls" hx-swap="outerHTML"
+          {% if detail %}hx-vals='{"detail": "1"}' {% endif %}
+          title="Paint: {{ entry.get_paint_state_display }} · tap to advance"
+          aria-label="Paint state {{ entry.get_paint_state_display }}. Tap to advance.">
+    {{ entry.get_paint_state_display }}
+  </button>
+  <button type="button" class="badge state ready{% if entry.ready_for_game %} good{% else %} ghost{% endif %}"
+          hx-post="{% url 'collection:quick_advance' entry.pk 'ready' %}"
+          hx-target="closest .state-controls" hx-swap="outerHTML"
+          {% if detail %}hx-vals='{"detail": "1"}' {% endif %}
+          aria-pressed="{{ entry.ready_for_game|yesno:'true,false' }}"
+          title="{% if entry.ready_for_game %}Ready for game · tap to unset{% else %}Tap to mark ready for game{% endif %}">
+    {% if entry.ready_for_game %}★ Ready{% else %}Ready?{% endif %}
+  </button>
+</span>

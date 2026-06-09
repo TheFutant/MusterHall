@@ -5,9 +5,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Count, Sum
-from django.http import HttpResponse
-from django.shortcuts import redirect, render
+from django.http import HttpResponse, HttpResponseBadRequest
+from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
+from django.views.decorators.http import require_POST
 from django.utils import timezone
 from django.views.generic import (
     CreateView,
@@ -133,6 +135,51 @@ class CollectionListView(OwnerEntryMixin, ListView):
 class CollectionDetailView(OwnerEntryMixin, DetailView):
     template_name = "collection/entry_detail.html"
     context_object_name = "entry"
+
+
+#: Axes the one-tap quick-toggle can change.
+QUICK_AXES = {"assembly", "paint", "ready"}
+
+
+@login_required
+@require_POST
+def quick_advance(request, pk, axis):
+    """Advance one hobby-state axis of an entry with a single tap (HTMX).
+
+    The at-the-table quick-toggle: bump build/paint a step or flip ready-for-game,
+    then return just the refreshed controls fragment so the card updates in place
+    with no reload. Scoped through ``visible_to`` like every other entry view.
+    """
+    if axis not in QUICK_AXES:
+        return HttpResponseBadRequest("Unknown state axis.")
+
+    entry = get_object_or_404(CollectionEntry.objects.visible_to(request.user), pk=pk)
+
+    if axis == "assembly":
+        entry.advance_assembly()
+        changed = "assembly_state"
+    elif axis == "paint":
+        entry.advance_paint()
+        changed = "paint_state"
+    else:  # ready
+        entry.ready_for_game = not entry.ready_for_game
+        changed = "ready_for_game"
+
+    # Touch ``updated`` too so just-handled units bubble to the top of the list.
+    entry.save(update_fields=[changed, "updated"])
+
+    # The detail page shows the same state in several spots (the <dl> and the
+    # derived "Battle ready" badge), so when the tap came from there we append
+    # out-of-band fragments that resync them alongside the in-place swap.
+    detail = request.POST.get("detail") == "1"
+    html = render_to_string(
+        "collection/_entry_controls.html", {"entry": entry, "detail": detail}, request=request
+    )
+    if detail:
+        html += render_to_string(
+            "collection/_entry_detail_oob.html", {"entry": entry}, request=request
+        )
+    return HttpResponse(html)
 
 
 class _EntryFormMixin:

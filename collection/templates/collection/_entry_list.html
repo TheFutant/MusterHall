@@ -14,9 +14,7 @@
       </div>
       <div class="badges">
         {% if entry.quantity > 1 %}<span class="badge qty">×{{ entry.quantity }}</span>{% endif %}
-        <span class="badge">{{ entry.get_assembly_state_display }}</span>
-        <span class="badge {% if entry.is_painted %}accent{% endif %}">{{ entry.get_paint_state_display }}</span>
-        {% if entry.ready_for_game %}<span class="badge good">Ready</span>{% endif %}
+        {% include "collection/_entry_controls.html" %}
       </div>
     </div>
   </article>

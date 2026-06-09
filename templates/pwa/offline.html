@@ -1,0 +1,23 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="{{ theme_color }}">
+  <title>Offline · {{ site_name }}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body>
+  <main class="container">
+    <div class="empty" style="margin-top:4rem">
+      <img src="{% static 'icons/icon-192.png' %}" alt="" width="96" height="96"
+           style="border-radius:var(--radius)">
+      <h1>You're offline</h1>
+      <p>MusterHall needs a connection to your homelab to load your collection.</p>
+      <p class="muted">Reconnect to the same network as your server, then try again.</p>
+      <p><a class="btn btn-primary" href="/">Retry</a></p>
+    </div>
+  </main>
+</body>
+</html>

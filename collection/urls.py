@@ -12,6 +12,7 @@ urlpatterns = [
     path("collection/import/confirm/", views.roster_import_confirm, name="roster_import_confirm"),
     path("collection/export.csv", views.export_csv, name="export"),
     path("collection/<int:pk>/", views.CollectionDetailView.as_view(), name="detail"),
+    path("collection/<int:pk>/state/<str:axis>/", views.quick_advance, name="quick_advance"),
     path("collection/<int:pk>/edit/", views.CollectionUpdateView.as_view(), name="update"),
     path("collection/<int:pk>/delete/", views.CollectionDeleteView.as_view(), name="delete"),
 ]
