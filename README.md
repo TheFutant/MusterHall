@@ -17,7 +17,9 @@ costs and unit data are added later, *by you*, through the admin — see
 ## Features (MVP)
 
 - **Multi-user** with self-service signup (toggleable) and per-user data isolation.
-  Each user only sees and edits their own collection; staff/admin see everything.
+  Every account — staff included — only sees and edits its own collection in the
+  app, so a household can share one instance with private collections. Admins
+  manage everyone's data through the Django admin site (`/admin/`).
 - **Collection entries** with: unit/model name, faction, chapter/subfaction,
   quantity, **build state** and **paint state** (tracked independently), paint
   scheme, source product/box, storage location, notes, tags, optional photo,
