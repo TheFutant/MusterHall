@@ -1,0 +1,7 @@
+{% comment %}
+Out-of-band refreshes returned alongside the #results swap after a bulk action:
+the toolbar entry count (may change on delete) and the feedback line. Both live
+outside #results so they survive the swap.
+{% endcomment %}
+<span id="result-count" hx-swap-oob="true">{{ total_count }}</span>
+<span id="bulk-feedback" class="bulk-feedback" hx-swap-oob="true">{{ feedback }}</span>

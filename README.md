@@ -30,6 +30,10 @@ costs and unit data are added later, *by you*, through the admin — see
   at the painting table.
 - **Filter & search**: faction, chapter/subfaction, build state, paint state,
   source product, tag, ready-for-game, and free text — live-updating via HTMX.
+- **Bulk multi-select edit**: tick several units (or select-all), then set paint
+  state, build state, ready-for-game or storage location, add a tag, or delete —
+  in one action. Honours the active filters, so you can e.g. filter to one box
+  and prime the lot. HTMX-driven, no page reload.
 - **Dashboard**: total entries & models, built vs unbuilt, painted vs unpainted,
   ready-for-game count, and breakdowns by faction, subfaction and source product.
 - **CSV export** of your collection (honouring the active filters).

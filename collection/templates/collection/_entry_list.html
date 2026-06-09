@@ -2,6 +2,9 @@
 <div class="entry-grid">
   {% for entry in entries %}
   <article class="entry">
+    <label class="select" title="Select for bulk edit">
+      <input type="checkbox" name="ids" value="{{ entry.pk }}" aria-label="Select {{ entry.name }}">
+    </label>
     <a class="thumb" href="{{ entry.get_absolute_url }}">
       {% if entry.photo %}<img src="{{ entry.photo.url }}" alt="{{ entry.name }}" loading="lazy">
       {% else %}<span class="ph">no photo</span>{% endif %}
