@@ -106,10 +106,13 @@ class ModelTests(TestCase):
         staff = User.objects.create_user("admin", password="pw12345!", is_staff=True)
         mine = make_entry(self.user, name="Mine")
         theirs = make_entry(bob, name="Theirs")
+        staff_own = make_entry(staff, name="Admin's own")
 
         self.assertEqual(set(CollectionEntry.objects.visible_to(self.user)), {mine})
         self.assertEqual(set(CollectionEntry.objects.visible_to(bob)), {theirs})
-        self.assertEqual(set(CollectionEntry.objects.visible_to(staff)), {mine, theirs})
+        # Staff are scoped to their own collection in the app too; the Django
+        # admin site is where they see everyone.
+        self.assertEqual(set(CollectionEntry.objects.visible_to(staff)), {staff_own})
 
 
 class FilterTests(TestCase):
@@ -183,6 +186,15 @@ class ViewCrudTests(TestCase):
         self.assertEqual(self.client.get(reverse("collection:update", args=[bob_entry.pk])).status_code, 404)
         self.assertEqual(self.client.post(reverse("collection:delete", args=[bob_entry.pk])).status_code, 404)
         self.assertTrue(CollectionEntry.objects.filter(pk=bob_entry.pk).exists())
+
+    def test_staff_account_is_scoped_in_app(self):
+        # Staff get their own private collection in the app like everyone else;
+        # cross-account access is the Django admin site's job, not the front-end.
+        staff = User.objects.create_user("admin", password="pw12345!", is_staff=True)
+        bob_entry = make_entry(self.bob, name="Bob's Boyz")
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(reverse("collection:detail", args=[bob_entry.pk])).status_code, 404)
+        self.assertNotContains(self.client.get(reverse("collection:list")), "Bob's Boyz")
 
     def test_owner_can_delete(self):
         entry = make_entry(self.alice, name="Scrap")

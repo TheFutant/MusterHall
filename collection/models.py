@@ -123,13 +123,14 @@ class CollectionEntryQuerySet(models.QuerySet):
     def visible_to(self, user):
         """The single source of truth for who can see which entries.
 
-        Staff/admin see everything; everyone else sees only their own. Used by
-        every view, the CSV export and the dashboard so they cannot diverge.
+        Every account — staff included — sees only its own collection in the
+        app, so a household can share one instance with private collections.
+        Admins manage everyone's data through the Django admin site instead.
+        Used by every view, the CSV export and the dashboard so they cannot
+        diverge.
         """
         if not user or not user.is_authenticated:
             return self.none()
-        if user.is_staff:
-            return self
         return self.filter(owner=user)
 
     def with_related(self):
