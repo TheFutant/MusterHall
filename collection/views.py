@@ -3,6 +3,7 @@ import csv
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Sum
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -37,6 +38,9 @@ from .roster_import import FACTION_ALIASES, parse_roster, plan_import
 
 MAX_ROSTER_CHARS = 100_000
 MAX_ROSTER_UNITS = 300
+
+#: Page size shared by the list view and the bulk-edit re-render.
+PAGE_SIZE = 24
 
 
 def _form_suggestions(user):
@@ -109,7 +113,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
 class CollectionListView(OwnerEntryMixin, ListView):
     template_name = "collection/entry_list.html"
     context_object_name = "entries"
-    paginate_by = 24
+    paginate_by = PAGE_SIZE
 
     def get_queryset(self):
         return filtered_entries(self.request.user, self.request.GET)
@@ -129,6 +133,8 @@ class CollectionListView(OwnerEntryMixin, ListView):
         ctx["tags"] = Tag.objects.filter(owner=self.request.user)
         ctx["assembly_choices"] = AssemblyState.choices
         ctx["paint_choices"] = PaintState.choices
+        # Datalist values for the bulk-edit "set storage" / "add tag" inputs.
+        ctx.update(_form_suggestions(self.request.user))
         return ctx
 
 
@@ -180,6 +186,107 @@ def quick_advance(request, pk, axis):
             "collection/_entry_detail_oob.html", {"entry": entry}, request=request
         )
     return HttpResponse(html)
+
+
+# ---------------------------------------------------------------------------
+# Bulk multi-select edit
+# ---------------------------------------------------------------------------
+#: Changes the bulk bar can apply to the selected entries.
+BULK_ACTIONS = {
+    "paint_state", "assembly_state", "ready_for_game",
+    "storage_location", "add_tag", "delete",
+}
+
+
+def _n_entries(n):
+    return f"{n} " + ("entry" if n == 1 else "entries")
+
+
+def _selected_ids(request):
+    """The numeric entry ids posted from the checkbox selection."""
+    return [int(i) for i in request.POST.getlist("ids") if i.isdigit()]
+
+
+def _render_list_fragment(request, *, feedback=""):
+    """Re-render the filtered + paginated list for an HTMX swap of #results.
+
+    Out-of-band fragments refresh the toolbar count and the bulk feedback line,
+    which live outside #results so they survive the swap.
+    """
+    qs = filtered_entries(request.user, request.POST)
+    page_obj = Paginator(qs, PAGE_SIZE).get_page(request.POST.get("page") or 1)
+    html = render_to_string(
+        "collection/_entry_list.html",
+        {
+            "entries": page_obj.object_list,
+            "page_obj": page_obj,
+            "is_paginated": page_obj.has_other_pages(),
+        },
+        request=request,
+    )
+    html += render_to_string(
+        "collection/_bulk_feedback.html",
+        {"feedback": feedback, "total_count": page_obj.paginator.count},
+        request=request,
+    )
+    return HttpResponse(html)
+
+
+@login_required
+@require_POST
+def bulk_edit(request):
+    """Apply one change to every selected (and visible) entry, then re-render.
+
+    Selection is scoped through ``visible_to`` so a user can only ever touch
+    their own entries; unknown or foreign ids are silently dropped. ``updated``
+    is bumped to match the single-entry quick-toggle's recency behaviour.
+    """
+    action = request.POST.get("action")
+    value = (request.POST.get("value") or "").strip()
+
+    if action not in BULK_ACTIONS:
+        return HttpResponseBadRequest("Unknown bulk action.")
+
+    entries = CollectionEntry.objects.visible_to(request.user).filter(pk__in=_selected_ids(request))
+    n = entries.count()
+    if n == 0:
+        return _render_list_fragment(request, feedback="Nothing selected.")
+
+    now = timezone.now()
+
+    if action == "paint_state":
+        v = int(value) if value.isdigit() else None
+        if v not in PaintState.values:
+            return _render_list_fragment(request, feedback="Pick a paint state.")
+        entries.update(paint_state=v, updated=now)
+        feedback = f"Set paint state on {_n_entries(n)}."
+    elif action == "assembly_state":
+        v = int(value) if value.isdigit() else None
+        if v not in AssemblyState.values:
+            return _render_list_fragment(request, feedback="Pick a build state.")
+        entries.update(assembly_state=v, updated=now)
+        feedback = f"Set build state on {_n_entries(n)}."
+    elif action == "ready_for_game":
+        ready = value == "1"
+        entries.update(ready_for_game=ready, updated=now)
+        feedback = f"Marked {_n_entries(n)} {'ready' if ready else 'not ready'}."
+    elif action == "storage_location":
+        entries.update(storage_location=value, updated=now)
+        feedback = f"Storage {f'set to “{value}”' if value else 'cleared'} on {_n_entries(n)}."
+    elif action == "add_tag":
+        if not value:
+            return _render_list_fragment(request, feedback="Type a tag name.")
+        tag, _ = Tag.objects.get_or_create(owner=request.user, name=value)
+        with transaction.atomic():
+            for entry in entries:
+                entry.tags.add(tag)
+            entries.update(updated=now)
+        feedback = f"Tagged {_n_entries(n)} “{tag.name}”."
+    else:  # delete
+        entries.delete()
+        feedback = f"Deleted {_n_entries(n)}."
+
+    return _render_list_fragment(request, feedback=feedback)
 
 
 class _EntryFormMixin:

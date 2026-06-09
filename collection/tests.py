@@ -3,6 +3,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from reference.models import Faction, SubFaction
 
@@ -314,6 +315,134 @@ class QuickToggleTests(TestCase):
         resp = self.client.post(self._url(entry, "assembly"))
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/accounts/login/", resp["Location"])
+
+
+class BulkEditTests(TestCase):
+    """Bulk multi-select edit (collection:bulk_edit)."""
+
+    url = reverse("collection:bulk_edit")
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.alice = User.objects.create_user("alice", password="pw12345!")
+        cls.bob = User.objects.create_user("bob", password="pw12345!")
+
+    def setUp(self):
+        self.client.force_login(self.alice)
+        self.e1 = make_entry(self.alice, name="Intercessors", paint_state=PaintState.UNPAINTED)
+        self.e2 = make_entry(self.alice, name="Hellblasters", paint_state=PaintState.UNPAINTED)
+        self.e3 = make_entry(self.alice, name="Redemptor", paint_state=PaintState.UNPAINTED)
+
+    def _post(self, **data):
+        return self.client.post(self.url, data)
+
+    def test_set_paint_state_on_selected_only(self):
+        resp = self._post(action="paint_state", value=PaintState.PAINTED,
+                          ids=[self.e1.pk, self.e2.pk])
+        self.assertEqual(resp.status_code, 200)
+        self.e1.refresh_from_db(); self.e2.refresh_from_db(); self.e3.refresh_from_db()
+        self.assertEqual(self.e1.paint_state, PaintState.PAINTED)
+        self.assertEqual(self.e2.paint_state, PaintState.PAINTED)
+        self.assertEqual(self.e3.paint_state, PaintState.UNPAINTED)  # not selected
+        self.assertContains(resp, "Set paint state on 2 entries.")
+
+    def test_set_assembly_state(self):
+        self._post(action="assembly_state", value=AssemblyState.ASSEMBLED, ids=[self.e1.pk])
+        self.e1.refresh_from_db()
+        self.assertEqual(self.e1.assembly_state, AssemblyState.ASSEMBLED)
+
+    def test_set_ready(self):
+        self._post(action="ready_for_game", value="1", ids=[self.e1.pk, self.e2.pk])
+        self.e1.refresh_from_db(); self.e2.refresh_from_db()
+        self.assertTrue(self.e1.ready_for_game)
+        self.assertTrue(self.e2.ready_for_game)
+        self._post(action="ready_for_game", value="0", ids=[self.e1.pk])
+        self.e1.refresh_from_db()
+        self.assertFalse(self.e1.ready_for_game)
+
+    def test_set_storage_location_and_clear(self):
+        self._post(action="storage_location", value="Shelf B", ids=[self.e1.pk])
+        self.e1.refresh_from_db()
+        self.assertEqual(self.e1.storage_location, "Shelf B")
+        self._post(action="storage_location", value="", ids=[self.e1.pk])
+        self.e1.refresh_from_db()
+        self.assertEqual(self.e1.storage_location, "")
+
+    def test_add_tag_creates_and_assigns_per_user(self):
+        self._post(action="add_tag", value="WIP", ids=[self.e1.pk, self.e2.pk])
+        tag = Tag.objects.get(owner=self.alice, name="WIP")
+        self.assertEqual(set(tag.entries.values_list("pk", flat=True)), {self.e1.pk, self.e2.pk})
+
+    def test_add_existing_tag_is_idempotent(self):
+        self._post(action="add_tag", value="WIP", ids=[self.e1.pk])
+        self._post(action="add_tag", value="WIP", ids=[self.e1.pk])
+        self.assertEqual(Tag.objects.filter(owner=self.alice, name="WIP").count(), 1)
+        self.assertEqual(self.e1.tags.count(), 1)
+
+    def test_delete_selected(self):
+        resp = self._post(action="delete", ids=[self.e1.pk, self.e2.pk])
+        self.assertContains(resp, "Deleted 2 entries.")
+        self.assertFalse(CollectionEntry.objects.filter(pk__in=[self.e1.pk, self.e2.pk]).exists())
+        self.assertTrue(CollectionEntry.objects.filter(pk=self.e3.pk).exists())
+
+    def test_cannot_touch_other_users_entries(self):
+        bob_entry = make_entry(self.bob, name="Bob's Boyz", paint_state=PaintState.UNPAINTED)
+        resp = self._post(action="paint_state", value=PaintState.PAINTED,
+                          ids=[self.e1.pk, bob_entry.pk])
+        bob_entry.refresh_from_db()
+        self.assertEqual(bob_entry.paint_state, PaintState.UNPAINTED)  # foreign id dropped
+        self.assertContains(resp, "Set paint state on 1 entry.")       # only the owned one
+
+    def test_invalid_paint_value_is_ignored(self):
+        resp = self._post(action="paint_state", value="999", ids=[self.e1.pk])
+        self.e1.refresh_from_db()
+        self.assertEqual(self.e1.paint_state, PaintState.UNPAINTED)
+        self.assertContains(resp, "Pick a paint state.")
+
+    def test_nothing_selected(self):
+        resp = self._post(action="paint_state", value=PaintState.PAINTED, ids=[])
+        self.assertContains(resp, "Nothing selected.")
+
+    def test_unknown_action_is_bad_request(self):
+        resp = self._post(action="explode", ids=[self.e1.pk])
+        self.assertEqual(resp.status_code, 400)
+
+    def test_updated_is_bumped(self):
+        before = timezone.now()
+        self._post(action="paint_state", value=PaintState.PAINTED, ids=[self.e1.pk])
+        self.e1.refresh_from_db()
+        self.assertGreaterEqual(self.e1.updated, before)
+
+    def test_response_has_oob_count_and_feedback(self):
+        resp = self._post(action="ready_for_game", value="1", ids=[self.e1.pk])
+        body = resp.content.decode()
+        self.assertIn('id="result-count"', body)
+        self.assertIn('id="bulk-feedback"', body)
+        self.assertIn('hx-swap-oob="true"', body)
+
+    def test_rerender_respects_active_filters(self):
+        # Tag e1 only, then bulk-edit while filtering to that tag: the re-rendered
+        # list must show just the tagged entry, not the whole collection.
+        self._post(action="add_tag", value="Squad", ids=[self.e1.pk])
+        tag = Tag.objects.get(owner=self.alice, name="Squad")
+        resp = self._post(action="ready_for_game", value="1", ids=[self.e1.pk], tag=tag.pk)
+        self.assertContains(resp, "Intercessors")
+        self.assertNotContains(resp, "Hellblasters")
+
+    def test_get_not_allowed(self):
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+
+    def test_login_required(self):
+        self.client.logout()
+        resp = self._post(action="paint_state", value=PaintState.PAINTED, ids=[self.e1.pk])
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/accounts/login/", resp["Location"])
+
+    def test_list_page_renders_bulk_ui(self):
+        resp = self.client.get(reverse("collection:list"))
+        self.assertContains(resp, 'id="bulk-bar"')
+        self.assertContains(resp, 'name="ids"')
+        self.assertContains(resp, "js/bulk.js")
 
 
 class ExportAndDashboardTests(TestCase):

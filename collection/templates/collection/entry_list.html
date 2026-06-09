@@ -1,10 +1,14 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Collection · {{ SITE_NAME }}{% endblock %}
 {% block content %}
 <div class="toolbar">
   <div>
     <h1>Collection</h1>
-    <p class="subtitle" style="margin:0"><span id="result-count">{{ total_count }}</span> entr{{ total_count|pluralize:"y,ies" }}</p>
+    <p class="subtitle" style="margin:0">
+      <span id="result-count">{{ total_count }}</span> entr{{ total_count|pluralize:"y,ies" }}
+      <span id="bulk-feedback" class="bulk-feedback" aria-live="polite"></span>
+    </p>
   </div>
   <div class="spacer"></div>
   <a href="{% url 'collection:export' %}{% querystring %}" class="btn">⬇ Export CSV</a>
@@ -14,7 +18,63 @@
 
 {% include "collection/_filters.html" %}
 
+<div id="bulk-bar" class="bulk-bar" aria-label="Bulk edit">
+  <label class="bulk-count">
+    <input type="checkbox" id="select-all"> <span><b id="bulk-n">0</b> selected</span>
+  </label>
+  <span id="bulk-hint" class="muted">Tick units to bulk-edit them.</span>
+
+  <form id="bulk-form" class="bulk-actions hidden"
+        hx-post="{% url 'collection:bulk_edit' %}"
+        hx-target="#results" hx-swap="innerHTML"
+        hx-include="#filters, [name=ids]:checked">
+    <select name="action" id="bulk-action" aria-label="Bulk action">
+      <option value="paint_state">Set paint state</option>
+      <option value="assembly_state">Set build state</option>
+      <option value="ready_for_game">Set ready</option>
+      <option value="storage_location">Set storage</option>
+      <option value="add_tag">Add tag</option>
+    </select>
+    <span class="bulk-value" data-for="paint_state">
+      <select name="value" aria-label="Paint state">
+        {% for value, label in paint_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </span>
+    <span class="bulk-value hidden" data-for="assembly_state">
+      <select name="value" aria-label="Build state">
+        {% for value, label in assembly_choices %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+      </select>
+    </span>
+    <span class="bulk-value hidden" data-for="ready_for_game">
+      <select name="value" aria-label="Ready for game">
+        <option value="1">Ready</option>
+        <option value="0">Not ready</option>
+      </select>
+    </span>
+    <span class="bulk-value hidden" data-for="storage_location">
+      <input type="text" name="value" list="storage-options" placeholder="Storage location" autocomplete="off">
+    </span>
+    <span class="bulk-value hidden" data-for="add_tag">
+      <input type="text" name="value" list="tag-options" placeholder="Tag name" autocomplete="off">
+    </span>
+    <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+  </form>
+
+  <button type="button" id="bulk-delete" class="btn btn-danger btn-sm hidden"
+          hx-post="{% url 'collection:bulk_edit' %}"
+          hx-vals='{"action": "delete"}'
+          hx-include="#filters, [name=ids]:checked"
+          hx-target="#results" hx-swap="innerHTML"
+          hx-confirm="Delete the selected entries? This cannot be undone.">Delete</button>
+  <button type="button" id="bulk-clear" class="btn btn-sm hidden">Clear</button>
+</div>
+
+<datalist id="storage-options">{% for s in storage_options %}<option value="{{ s }}"></option>{% endfor %}</datalist>
+<datalist id="tag-options">{% for t in tag_options %}<option value="{{ t }}"></option>{% endfor %}</datalist>
+
 <div id="results">
   {% include "collection/_entry_list.html" %}
 </div>
+
+<script src="{% static 'js/bulk.js' %}" defer></script>
 {% endblock %}
