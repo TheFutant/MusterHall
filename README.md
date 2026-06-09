@@ -27,6 +27,11 @@ costs and unit data are added later, *by you*, through the admin — see
 - **Dashboard**: total entries & models, built vs unbuilt, painted vs unpainted,
   ready-for-game count, and breakdowns by faction, subfaction and source product.
 - **CSV export** of your collection (honouring the active filters).
+- **Installable (PWA)**: add MusterHall to your phone's home screen and it
+  launches fullscreen with its own icon — no app store, no separate mobile app.
+  The UI is responsive and a friendly offline screen shows when your homelab is
+  unreachable. (Service worker is network-first for pages, so your data is never
+  cached stale or across users.)
 - **Django admin** configured for every model.
 - **Seed command** for instant demo data.
 - **Foundations for the future** (army lists, points, detachments) modelled but
@@ -34,7 +39,8 @@ costs and unit data are added later, *by you*, through the admin — see
 
 ## Stack
 
-Django 5.2 (LTS) · PostgreSQL 16 · HTMX · Docker Compose · WhiteNoise · Pillow.
+Django 5.2 (LTS) · PostgreSQL 16 · HTMX · PWA (installable + offline shell) ·
+Docker Compose · WhiteNoise · Pillow.
 
 ---
 
@@ -132,6 +138,12 @@ All configuration is environment-driven (see `.env.example`). Highlights:
   `/media/` and `/static/` for better performance (then set `SERVE_MEDIA=False`).
 - **Photos** live in the `media` Docker volume and **Postgres** in `pgdata` —
   back these up. They persist across `docker compose up --build`.
+- **Install on your phone**: open the site in your phone's browser and choose
+  *Add to Home Screen* (Safari) or *Install app* (Chrome). The home-screen
+  launch shows the app fullscreen with its own icon. Installability needs a
+  secure context — `localhost` works for testing, but over the LAN browsers
+  require HTTPS (see the reverse-proxy note above). The app icons are committed;
+  regenerate them with `python manage.py gen_pwa_icons` if you re-theme.
 
 ---
 
@@ -181,8 +193,9 @@ accounts/       Custom user model + signup
 reference/      Shared, versioned rules/metadata (mostly to be filled later)
 collection/     The MVP: models, filters, CRUD views, dashboard, CSV, seed_data
 armylist/       Experimental list-building foundation (admin only)
-templates/      Base layout + auth templates
-static/         CSS + vendored HTMX
+config/pwa_views.py  Manifest, service worker and offline endpoints (root-scoped)
+templates/      Base layout + auth templates (+ templates/pwa/ for the PWA)
+static/         CSS + vendored HTMX + generated app icons (static/icons/)
 Dockerfile, docker-compose.yml, entrypoint.sh, .env.example
 ```
 

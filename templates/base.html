@@ -9,6 +9,23 @@
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <script src="{% static 'js/htmx.min.js' %}" defer></script>
   {% django_htmx_script %}
+
+  {# Progressive web app: installable to the home screen, offline shell. #}
+  <link rel="manifest" href="{% url 'manifest' %}">
+  <meta name="theme-color" content="#c2410c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MusterHall">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'icons/favicon-32.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'icons/apple-touch-icon.png' %}">
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("{% url 'service_worker' %}").catch(function () {});
+      });
+    }
+  </script>
 </head>
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
   <header class="site-header">
