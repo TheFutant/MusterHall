@@ -22,6 +22,12 @@ costs and unit data are added later, *by you*, through the admin — see
   quantity, **build state** and **paint state** (tracked independently), paint
   scheme, source product/box, storage location, notes, tags, optional photo,
   a *ready-for-game* flag and a *backlog priority*.
+- **One-tap state advance**: on the collection list **and each unit's detail
+  page**, tap a unit's build, paint or ready badge to bump it one step —
+  *clipped → assembled*, *in progress → painted → based*, or flip *ready for
+  game* — without opening the edit form. Updates in place via HTMX (the detail
+  page also out-of-band resyncs its summary fields), so it's ideal phone-in-hand
+  at the painting table.
 - **Filter & search**: faction, chapter/subfaction, build state, paint state,
   source product, tag, ready-for-game, and free text — live-updating via HTMX.
 - **Dashboard**: total entries & models, built vs unbuilt, painted vs unpainted,

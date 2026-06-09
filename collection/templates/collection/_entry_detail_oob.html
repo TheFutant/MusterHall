@@ -1,0 +1,10 @@
+{% comment %}
+Out-of-band refreshes for the detail page. When a state is toggled there, the
+controls swap in place AND these resync the other spots that show the same state
+— the <dl> build/paint cells and the derived "Battle ready" badge — so nothing
+on the page goes stale. Plain <span>s (HTMX can't parse bare <dd>/<td> OOB).
+Emitted by quick_advance only for detail-page requests; the list never sends them.
+{% endcomment %}
+<span id="detail-assembly" hx-swap-oob="true">{{ entry.get_assembly_state_display }}</span>
+<span id="detail-paint" hx-swap-oob="true">{{ entry.get_paint_state_display }}</span>
+<span id="detail-battle-ready" hx-swap-oob="true">{% if entry.is_battle_ready %}<span class="badge good">Battle ready</span>{% endif %}</span>

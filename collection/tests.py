@@ -199,6 +199,123 @@ class ViewCrudTests(TestCase):
         self.assertContains(resp, "Findable Unit")
 
 
+class QuickToggleTests(TestCase):
+    """The at-the-table one-tap state advance (collection:quick_advance)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.alice = User.objects.create_user("alice", password="pw12345!")
+        cls.bob = User.objects.create_user("bob", password="pw12345!")
+
+    def _url(self, entry, axis):
+        return reverse("collection:quick_advance", args=[entry.pk, axis])
+
+    def test_assembly_advances_and_wraps(self):
+        entry = make_entry(self.alice, assembly_state=AssemblyState.NEW_ON_SPRUE)
+        self.client.force_login(self.alice)
+        sequence = [
+            AssemblyState.CLIPPED,
+            AssemblyState.ASSEMBLED,
+            AssemblyState.NEW_ON_SPRUE,  # wraps back to the start
+        ]
+        for expected in sequence:
+            resp = self.client.post(self._url(entry, "assembly"))
+            self.assertEqual(resp.status_code, 200)
+            entry.refresh_from_db()
+            self.assertEqual(entry.assembly_state, expected)
+            self.assertContains(resp, expected.label)
+
+    def test_paint_advances_through_all_states_and_wraps(self):
+        entry = make_entry(self.alice, paint_state=PaintState.UNPAINTED)
+        self.client.force_login(self.alice)
+        order = [
+            PaintState.PRIMED,
+            PaintState.IN_PROGRESS,
+            PaintState.PAINTED,
+            PaintState.BASED,
+            PaintState.UNPAINTED,  # wraps
+        ]
+        for expected in order:
+            self.client.post(self._url(entry, "paint"))
+            entry.refresh_from_db()
+            self.assertEqual(entry.paint_state, expected)
+
+    def test_ready_toggles(self):
+        entry = make_entry(self.alice, ready_for_game=False)
+        self.client.force_login(self.alice)
+
+        resp = self.client.post(self._url(entry, "ready"))
+        entry.refresh_from_db()
+        self.assertTrue(entry.ready_for_game)
+        self.assertContains(resp, "Ready")
+
+        self.client.post(self._url(entry, "ready"))
+        entry.refresh_from_db()
+        self.assertFalse(entry.ready_for_game)
+
+    def test_returns_fragment_not_full_page(self):
+        entry = make_entry(self.alice)
+        self.client.force_login(self.alice)
+        resp = self.client.post(self._url(entry, "assembly"))
+        body = resp.content.decode()
+        self.assertIn("state-controls", body)
+        self.assertNotIn("<html", body)  # partial only, not the whole page
+
+    def test_detail_request_emits_oob_resync(self):
+        entry = make_entry(self.alice, assembly_state=AssemblyState.NEW_ON_SPRUE)
+        self.client.force_login(self.alice)
+        resp = self.client.post(self._url(entry, "assembly"), {"detail": "1"})
+        body = resp.content.decode()
+        # In-place controls plus out-of-band refreshes for the <dl> and badge.
+        self.assertIn("state-controls", body)
+        self.assertIn('hx-swap-oob="true"', body)
+        self.assertIn('id="detail-assembly"', body)
+        self.assertIn('id="detail-paint"', body)
+        self.assertIn('id="detail-battle-ready"', body)
+        self.assertIn(AssemblyState.CLIPPED.label, body)  # the new value
+
+    def test_list_request_has_no_oob(self):
+        entry = make_entry(self.alice)
+        self.client.force_login(self.alice)
+        resp = self.client.post(self._url(entry, "assembly"))  # no detail flag
+        self.assertNotIn("hx-swap-oob", resp.content.decode())
+
+    def test_detail_page_renders_interactive_controls(self):
+        entry = make_entry(self.alice)
+        self.client.force_login(self.alice)
+        resp = self.client.get(reverse("collection:detail", args=[entry.pk]))
+        self.assertContains(resp, 'class="state-controls"')
+        self.assertContains(resp, 'id="detail-assembly"')   # OOB target present
+        self.assertContains(resp, self._url(entry, "assembly"))
+        self.assertContains(resp, 'hx-vals=')               # detail-context flag wired
+
+    def test_unknown_axis_is_bad_request(self):
+        entry = make_entry(self.alice)
+        self.client.force_login(self.alice)
+        resp = self.client.post(self._url(entry, "colour"))
+        self.assertEqual(resp.status_code, 400)
+
+    def test_get_not_allowed(self):
+        entry = make_entry(self.alice)
+        self.client.force_login(self.alice)
+        resp = self.client.get(self._url(entry, "assembly"))
+        self.assertEqual(resp.status_code, 405)
+
+    def test_cannot_toggle_others_entry(self):
+        bob_entry = make_entry(self.bob, assembly_state=AssemblyState.NEW_ON_SPRUE)
+        self.client.force_login(self.alice)
+        resp = self.client.post(self._url(bob_entry, "assembly"))
+        self.assertEqual(resp.status_code, 404)
+        bob_entry.refresh_from_db()
+        self.assertEqual(bob_entry.assembly_state, AssemblyState.NEW_ON_SPRUE)
+
+    def test_login_required(self):
+        entry = make_entry(self.alice)
+        resp = self.client.post(self._url(entry, "assembly"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/accounts/login/", resp["Location"])
+
+
 class ExportAndDashboardTests(TestCase):
     @classmethod
     def setUpTestData(cls):
